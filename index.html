@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
@@ -15,11 +15,22 @@
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen pb-12">
+    <!-- Aviso de Configuração do Firebase -->
+    <div id="firebase-setup-warning" class="hidden bg-amber-50 border-b border-amber-200 p-4">
+        <div class="max-w-6xl mx-auto flex gap-3">
+            <span class="text-2xl">⚠️</span>
+            <div>
+                <h3 class="font-bold text-amber-800">Autenticação não configurada</h3>
+                <p class="text-sm text-amber-700">O seu projeto Firebase precisa que a <b>Autenticação Anónima</b> esteja ativada. No Console do Firebase, vá a <b>Build > Authentication > Sign-in method</b> e ative o fornecedor <b>Anónimo</b>.</p>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto px-4 py-8">
         <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-bold text-gray-800 tracking-tight">Apartamento 🏠</h1>
-                <p class="text-gray-500">Gestão de gastos partilhada (Sincronizado)</p>
+                <h1 class="text-3xl font-bold text-gray-800 tracking-tight text-center md:text-left">Apartamento 🏠</h1>
+                <p class="text-gray-500 text-center md:text-left">Gestão de gastos partilhada (Sincronizado)</p>
             </div>
             <div class="flex flex-wrap items-center justify-center gap-2 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
                 <div class="flex items-center gap-2 px-2 text-xs font-semibold text-gray-500">
@@ -122,45 +133,24 @@
         let nomes = ["Você", "Colega 1", "Colega 2"];
         let despesas = [];
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                document.getElementById('user-status').classList.replace('bg-gray-300', 'bg-green-500');
-                document.getElementById('sync-text').innerText = "Online";
-                iniciarApp();
-            } else {
-                signInAnonymously(auth);
-            }
-        });
-
-        function iniciarApp() {
-            // Sincronizar Nomes
-            onSnapshot(doc(db, 'config', 'nomes'), (docSnap) => {
-                if (docSnap.exists()) {
-                    const d = docSnap.data();
-                    nomes = [d.n0 || "Você", d.n1 || "Colega 1", d.n2 || "Colega 2"];
-                    document.getElementById('nome-0').value = nomes[0];
-                    document.getElementById('nome-1').value = nomes[1];
-                    document.getElementById('nome-2').value = nomes[2];
-                }
-                atualizarTudo();
-            });
-
-            // Sincronizar Despesas
-            onSnapshot(collection(db, 'despesas'), (snap) => {
-                despesas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                despesas.sort((a, b) => new Date(a.data) - new Date(b.data));
-                atualizarTudo();
-                document.getElementById('loading').classList.add('hidden');
-            });
-        }
+        // EXPOR FUNÇÕES PARA O ESCOPO GLOBAL IMEDIATAMENTE
+        window.toggleConfig = () => {
+            const el = document.getElementById('config-nomes');
+            el.classList.toggle('hidden');
+        };
 
         window.salvarNomes = async () => {
-            await setDoc(doc(db, 'config', 'nomes'), {
-                n0: document.getElementById('nome-0').value || "Você",
-                n1: document.getElementById('nome-1').value || "Colega 1",
-                n2: document.getElementById('nome-2').value || "Colega 2"
-            });
-            window.toggleConfig();
+            try {
+                await setDoc(doc(db, 'config', 'nomes'), {
+                    n0: document.getElementById('nome-0').value || "Você",
+                    n1: document.getElementById('nome-1').value || "Colega 1",
+                    n2: document.getElementById('nome-2').value || "Colega 2"
+                });
+                window.toggleConfig();
+            } catch (e) {
+                console.error("Erro ao salvar nomes:", e);
+                alert("Erro ao salvar: verifique se as Regras do Firestore estão públicas.");
+            }
         };
 
         window.adicionarDespesa = async () => {
@@ -171,7 +161,10 @@
             const parcelas = parseInt(document.getElementById('parcelas').value);
             const pagador = parseInt(document.getElementById('pagador').value);
 
-            if (!desc || isNaN(valor) || !data || parcelas < 1) return;
+            if (!desc || isNaN(valor) || !data || parcelas < 1) {
+                alert("Preencha todos os campos!");
+                return;
+            }
 
             btn.disabled = true;
             btn.innerText = "Salvando...";
@@ -192,7 +185,8 @@
                 document.getElementById('valor').value = '';
                 document.getElementById('parcelas').value = '1';
             } catch (e) {
-                console.error(e);
+                console.error("Erro ao adicionar:", e);
+                alert("Erro ao gravar no banco. Verifique as regras do Firestore.");
             } finally {
                 btn.disabled = false;
                 btn.innerText = "Adicionar Gasto à Nuvem";
@@ -200,12 +194,65 @@
         };
 
         window.removerDespesa = async (id) => {
-            if (confirm("Deseja eliminar este gasto para todos?")) await deleteDoc(doc(db, 'despesas', id));
+            if (confirm("Deseja eliminar este gasto para todos?")) {
+                try {
+                    await deleteDoc(doc(db, 'despesas', id));
+                } catch (e) {
+                    console.error("Erro ao remover:", e);
+                }
+            }
         };
+
+        // INICIALIZAÇÃO E TRATAMENTO DO ERRO DE AUTH
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('user-status').classList.replace('bg-gray-300', 'bg-green-500');
+                document.getElementById('sync-text').innerText = "Online";
+                document.getElementById('firebase-setup-warning').classList.add('hidden');
+                iniciarApp();
+            } else {
+                signInAnonymously(auth).catch(error => {
+                    console.error("Erro na autenticação:", error.code);
+                    if (error.code === 'auth/configuration-not-found') {
+                        document.getElementById('firebase-setup-warning').classList.remove('hidden');
+                        document.getElementById('sync-text').innerText = "Erro Config.";
+                    }
+                });
+            }
+        });
+
+        function iniciarApp() {
+            // Sincronizar Nomes
+            onSnapshot(doc(db, 'config', 'nomes'), (docSnap) => {
+                if (docSnap.exists()) {
+                    const d = docSnap.data();
+                    nomes = [d.n0 || "Você", d.n1 || "Colega 1", d.n2 || "Colega 2"];
+                    document.getElementById('nome-0').value = nomes[0];
+                    document.getElementById('nome-1').value = nomes[1];
+                    document.getElementById('nome-2').value = nomes[2];
+                }
+                atualizarTudo();
+            }, (err) => console.error("Erro nomes:", err));
+
+            // Sincronizar Despesas
+            onSnapshot(collection(db, 'despesas'), (snap) => {
+                despesas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                despesas.sort((a, b) => new Date(a.data) - new Date(b.data));
+                atualizarTudo();
+                document.getElementById('loading').classList.add('hidden');
+            }, (err) => {
+                console.error("Erro despesas snapshot:", err);
+                if (err.code === 'permission-denied') {
+                    alert("Acesso Negado: Verifique as Regras do seu Firestore Database no Console.");
+                }
+            });
+        }
 
         function atualizarTudo() {
             const sel = document.getElementById('pagador');
+            const valorAtual = sel.value;
             sel.innerHTML = nomes.map((n, i) => `<option value="${i}">${n}</option>`).join('');
+            if (valorAtual && valorAtual < nomes.length) sel.value = valorAtual;
             
             const lista = document.getElementById('lista-despesas');
             const resumo = document.getElementById('resumo-mensal-container');
@@ -232,7 +279,7 @@
                     <tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors group">
                         <td class="py-4 text-xs font-medium text-gray-400">${dObj.toLocaleDateString('pt-PT')}</td>
                         <td class="py-4 text-sm font-semibold text-gray-700">${d.desc}</td>
-                        <td class="py-4 text-center text-xs font-bold uppercase text-gray-500">${nomes[d.pagador]}</td>
+                        <td class="py-4 text-center text-xs font-bold uppercase text-gray-500">${nomes[d.pagador] || 'N/A'}</td>
                         <td class="py-4 text-right font-bold text-gray-800">R$ ${d.valor.toLocaleString('pt-PT', {minimumFractionDigits:2})}</td>
                         <td class="py-4 text-right font-bold text-blue-600 bg-blue-50/30">R$ ${(d.valor/3).toLocaleString('pt-PT', {minimumFractionDigits:2})}</td>
                         <td class="py-4 text-right">
@@ -296,7 +343,6 @@
             });
         }
 
-        window.toggleConfig = () => document.getElementById('config-nomes').classList.toggle('hidden');
         document.getElementById('data').valueAsDate = new Date();
     </script>
 </body>
