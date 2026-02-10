@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Divisão de Gastos - Apartamento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .card { @apply bg-white p-6 rounded-2xl shadow-sm border border-gray-100; }
+        input, select { @apply p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50 border-gray-200 transition-all; }
+        label { @apply text-xs font-semibold text-gray-500 uppercase ml-1 mb-1 block; }
+        .btn-primary { @apply bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-blue-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2; }
+        .month-chip { @apply px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen pb-12">
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <header class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800 tracking-tight text-center md:text-left">Apartamento 🏠</h1>
+                <p class="text-gray-500 text-center md:text-left">Planilha compartilhada com Resumo Mensal</p>
+            </div>
+            <div class="flex flex-wrap items-center justify-center gap-2 bg-white p-2 rounded-xl border border-gray-100 shadow-sm">
+                <div class="flex items-center gap-2 px-2">
+                    <span id="user-status" class="w-3 h-3 bg-gray-300 rounded-full animate-pulse"></span>
+                    <span id="user-id-display" class="text-xs font-mono text-gray-400 italic text-nowrap">Conectando...</span>
+                </div>
+                <button onclick="copiarLink()" class="px-3 py-1 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors">
+                    Copiar Link
+                </button>
+                <button onclick="toggleConfig()" class="px-3 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200 transition-colors">
+                    ⚙️ Editar Nomes
+                </button>
+            </div>
+        </header>
+
+        <!-- Seção de Edição de Nomes -->
+        <div id="config-nomes" class="card mb-8 border-blue-100 bg-blue-50/30 hidden">
+            <h2 class="text-sm font-bold mb-4 text-blue-800 uppercase tracking-widest">Configurar Moradores</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label>Morador 1 (Você)</label>
+                    <input type="text" id="nome-0" placeholder="Seu Nome" class="w-full bg-white">
+                </div>
+                <div>
+                    <label>Morador 2</label>
+                    <input type="text" id="nome-1" placeholder="Nome Colega 1" class="w-full bg-white">
+                </div>
+                <div>
+                    <label>Morador 3</label>
+                    <input type="text" id="nome-2" placeholder="Nome Colega 2" class="w-full bg-white">
+                </div>
+                <div class="md:col-span-3">
+                    <button onclick="salvarNomes()" class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors">
+                        Salvar Nomes na Nuvem
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formulário de Entrada -->
+        <div class="card mb-8">
+            <h2 class="text-lg font-semibold mb-6 text-gray-700 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Registrar Gasto Compartilhado
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div class="md:col-span-2">
+                    <label>O que foi comprado?</label>
+                    <input type="text" id="desc" placeholder="Ex: Geladeira, Internet..." class="w-full">
+                </div>
+                <div>
+                    <label>Valor Total (R$)</label>
+                    <input type="number" id="valor" placeholder="0,00" class="w-full" step="0.01">
+                </div>
+                <div>
+                    <label>Data</label>
+                    <input type="date" id="data" class="w-full">
+                </div>
+                <div>
+                    <label>Parcelas</label>
+                    <input type="number" id="parcelas" value="1" min="1" class="w-full">
+                </div>
+                <div>
+                    <label>Quem Pagou?</label>
+                    <select id="pagador" class="w-full select-pagadores">
+                        <!-- Opções via JS -->
+                    </select>
+                </div>
+                <div class="md:col-span-6 flex items-end">
+                    <button id="btn-adicionar" onclick="adicionarDespesa()" class="w-full btn-primary">
+                        Adicionar à Planilha Nuvem
+                    </button>
+                </div>
+            </div>
+            <p id="msg-erro" class="text-red-500 text-sm mt-3 hidden">Preencha os campos corretamente.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <!-- TABELA PRINCIPAL -->
+            <div class="lg:col-span-3 space-y-8">
+                <div class="card">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-6">Fluxo de Pagamentos Individual</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left min-w-[600px]">
+                            <thead>
+                                <tr class="border-b text-gray-400 text-xs uppercase tracking-widest">
+                                    <th class="pb-4 font-semibold">Data</th>
+                                    <th class="pb-4 font-semibold">Descrição</th>
+                                    <th class="pb-4 font-semibold text-center">Pagador</th>
+                                    <th class="pb-4 font-semibold text-right">Valor Parcela</th>
+                                    <th class="pb-4 font-semibold text-right text-blue-600">Cada Um (1/3)</th>
+                                    <th class="pb-4 text-right"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-despesas"></tbody>
+                        </table>
+                        <div id="loading" class="py-12 text-center text-gray-400">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                            Sincronizando...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RESUMO MENSAL AGRUPADO -->
+                <div class="space-y-4">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Soma das Parcelas por Mês
+                    </h2>
+                    <div id="resumo-mensal-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Cards de cada mês gerados pelo JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- LATERAL: STATUS GERAL -->
+            <div class="space-y-6">
+                <div class="card bg-slate-900 text-white border-none shadow-xl">
+                    <h2 class="text-xs font-semibold mb-2 opacity-50 uppercase tracking-widest text-center">Resumo Total Acumulado</h2>
+                    <div id="total-geral" class="text-3xl font-bold text-center">R$ 0,00</div>
+                    <div class="h-px bg-white opacity-10 my-4"></div>
+                    <div class="space-y-3" id="saldos-gerais">
+                        <!-- Saldos totais vêm aqui -->
+                    </div>
+                </div>
+
+                <div class="card border-dashed border-2 border-gray-200 bg-transparent">
+                    <h2 class="text-sm font-bold mb-4 text-gray-500 uppercase tracking-tight">Como usar:</h2>
+                    <ul class="text-xs text-gray-500 space-y-2 list-disc pl-4">
+                        <li><b>Parcelas:</b> Ao colocar 10 parcelas, o sistema cria automaticamente 10 meses de cobrança.</li>
+                        <li><b>Nomes:</b> Clique em "Editar Nomes" para personalizar quem são os moradores.</li>
+                        <li><b>Sincronia:</b> Todos com o link vêm as mesmas alterações.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'apartamento-01';
+        
+        let nomes = ["Você", "Colega 1", "Colega 2"];
+        let user = null;
+        let despesas = [];
+
+        // 1. AUTH
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
+        onAuthStateChanged(auth, (u) => {
+            user = u;
+            if (user) {
+                document.getElementById('user-status').classList.replace('bg-gray-300', 'bg-green-500');
+                document.getElementById('user-id-display').innerText = `ID: ${user.uid.substring(0, 8)}`;
+                iniciarListeners();
+            }
+        });
+
+        initAuth();
+
+        // 2. LISTENERS
+        function iniciarListeners() {
+            if (!user) return;
+            
+            // Listener Nomes
+            const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'nomes');
+            onSnapshot(configDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    nomes = [data.nome0 || "Você", data.nome1 || "Colega 1", data.nome2 || "Colega 2"];
+                    document.getElementById('nome-0').value = nomes[0];
+                    document.getElementById('nome-1').value = nomes[1];
+                    document.getElementById('nome-2').value = nomes[2];
+                }
+                atualizarSeletorPagadores();
+                atualizarInterface();
+            });
+
+            // Listener Despesas
+            const despesasColRef = collection(db, 'artifacts', appId, 'public', 'data', 'despesas');
+            onSnapshot(despesasColRef, (snapshot) => {
+                despesas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                despesas.sort((a, b) => new Date(a.data) - new Date(b.data));
+                atualizarInterface();
+                document.getElementById('loading').classList.add('hidden');
+            }, (error) => console.error(error));
+        }
+
+        // 3. ACTIONS
+        window.toggleConfig = () => document.getElementById('config-nomes').classList.toggle('hidden');
+
+        window.salvarNomes = async () => {
+            const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'nomes');
+            await setDoc(configDocRef, {
+                nome0: document.getElementById('nome-0').value || "Você",
+                nome1: document.getElementById('nome-1').value || "Colega 1",
+                nome2: document.getElementById('nome-2').value || "Colega 2"
+            });
+            toggleConfig();
+        };
+
+        window.adicionarDespesa = async () => {
+            const btn = document.getElementById('btn-adicionar');
+            const desc = document.getElementById('desc').value;
+            const valorTotal = parseFloat(document.getElementById('valor').value);
+            const dataInicialStr = document.getElementById('data').value;
+            const numParcelas = parseInt(document.getElementById('parcelas').value);
+            const pagadorIdx = parseInt(document.getElementById('pagador').value);
+
+            if (!desc || isNaN(valorTotal) || valorTotal <= 0 || !dataInicialStr) return;
+
+            btn.disabled = true;
+            btn.innerText = "Salvando...";
+
+            const valorParcela = valorTotal / numParcelas;
+            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'despesas');
+            
+            try {
+                for (let i = 0; i < numParcelas; i++) {
+                    const d = new Date(dataInicialStr + 'T00:00:00');
+                    d.setMonth(d.getMonth() + i);
+                    await addDoc(colRef, {
+                        desc: numParcelas > 1 ? `${desc} (${i + 1}/${numParcelas})` : desc,
+                        valor: valorParcela,
+                        data: d.toISOString().split('T')[0],
+                        pagador: pagadorIdx
+                    });
+                }
+                document.getElementById('desc').value = '';
+                document.getElementById('valor').value = '';
+                document.getElementById('parcelas').value = '1';
+            } catch (e) { console.error(e); }
+            finally {
+                btn.disabled = false;
+                btn.innerText = "Adicionar à Planilha Nuvem";
+            }
+        };
+
+        window.removerDespesa = async (id) => {
+            if (confirm("Apagar gasto?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'despesas', id));
+            }
+        };
+
+        // 4. LOGICA DE INTERFACE
+        function atualizarSeletorPagadores() {
+            const select = document.getElementById('pagador');
+            select.innerHTML = nomes.map((n, i) => `<option value="${i}">${n}</option>`).join('');
+        }
+
+        function calcularAcertos(gastosPessoa, idealPessoa) {
+            let balancos = nomes.map((nome, i) => ({ nome, saldo: gastosPessoa[i] - idealPessoa }));
+            let devedores = balancos.filter(b => b.saldo < -0.01).sort((a,b) => a.saldo - b.saldo);
+            let credores = balancos.filter(b => b.saldo > 0.01).sort((a,b) => b.saldo - a.saldo);
+            let sugestoes = [];
+
+            devedores.forEach(d => {
+                let valorDevido = Math.abs(d.saldo);
+                credores.forEach(c => {
+                    if (valorDevido > 0 && c.saldo > 0) {
+                        let pagamento = Math.min(valorDevido, c.saldo);
+                        sugestoes.push({ de: d.nome, para: c.nome, valor: pagamento });
+                        valorDevido -= pagamento;
+                        c.saldo -= pagamento;
+                    }
+                });
+            });
+            return sugestoes;
+        }
+
+        function atualizarInterface() {
+            const lista = document.getElementById('lista-despesas');
+            const totalGeralEl = document.getElementById('total-geral');
+            const resumoMensalContainer = document.getElementById('resumo-mensal-container');
+            const saldosGeraisEl = document.getElementById('saldos-gerais');
+            
+            lista.innerHTML = '';
+            resumoMensalContainer.innerHTML = '';
+            saldosGeraisEl.innerHTML = '';
+
+            let totalGlobal = 0;
+            let gastosGlobalPorPessoa = [0, 0, 0];
+            let meses = {}; // Agrupamento por mês
+
+            despesas.forEach(d => {
+                totalGlobal += d.valor;
+                gastosGlobalPorPessoa[d.pagador] += d.valor;
+
+                // Agrupamento para resumo mensal
+                const dataObj = new Date(d.data + 'T00:00:00');
+                const mesChave = `${dataObj.getFullYear()}-${String(dataObj.getMonth() + 1).padStart(2, '0')}`;
+                if (!meses[mesChave]) meses[mesChave] = { total: 0, gastosPessoa: [0,0,0], items: [] };
+                meses[mesChave].total += d.valor;
+                meses[mesChave].gastosPessoa[d.pagador] += d.valor;
+
+                // Tabela Principal
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-50 hover:bg-gray-50 transition-colors group";
+                tr.innerHTML = `
+                    <td class="py-4 text-xs font-medium text-gray-400">${dataObj.toLocaleDateString('pt-BR')}</td>
+                    <td class="py-4 text-sm font-semibold text-gray-700">${d.desc}</td>
+                    <td class="py-4 text-center text-xs font-bold uppercase text-gray-500">${nomes[d.pagador]}</td>
+                    <td class="py-4 text-right font-bold text-gray-800">R$ ${d.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td class="py-4 text-right font-bold text-blue-600 bg-blue-50/30">R$ ${(d.valor/3).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td class="py-4 text-right">
+                        <button onclick="removerDespesa('${d.id}')" class="text-gray-300 hover:text-red-500 p-1"><svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                    </td>
+                `;
+                lista.appendChild(tr);
+            });
+
+            // 1. Renderizar Saldos Gerais na Lateral
+            const idealTotal = totalGlobal / 3;
+            totalGeralEl.innerText = `R$ ${totalGlobal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            nomes.forEach((nome, i) => {
+                const s = gastosGlobalPorPessoa[i] - idealTotal;
+                const div = document.createElement('div');
+                div.className = "flex justify-between text-xs";
+                div.innerHTML = `<span>${nome}</span><span class="${s >= 0 ? 'text-green-400' : 'text-red-400'} font-bold">${s >= 0 ? '+' : ''} R$ ${s.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>`;
+                saldosGeraisEl.appendChild(div);
+            });
+
+            // 2. Renderizar Resumo Mensal (Soma das parcelas de cada mês)
+            Object.keys(meses).sort().forEach(mesKey => {
+                const dadosMes = meses[mesKey];
+                const [ano, mes] = mesKey.split('-');
+                const nomeMes = new Date(ano, mes - 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+                const idealMes = dadosMes.total / 3;
+                
+                const acertosMes = calcularAcertos([...dadosMes.gastosPessoa], idealMes);
+
+                const card = document.createElement('div');
+                card.className = "card border-blue-50 bg-white";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="month-chip bg-blue-600 text-white">${nomeMes}</span>
+                        <div class="text-right">
+                            <div class="text-xs text-gray-400 uppercase font-bold">Total do Mês</div>
+                            <div class="text-lg font-bold text-gray-800">R$ ${dadosMes.total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500 mb-4 pb-2 border-b border-gray-50">
+                        Cada um deve pagar <b>R$ ${idealMes.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</b> este mês.
+                    </div>
+                    <div class="space-y-2">
+                        <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Acertos deste mês:</h4>
+                        ${acertosMes.length > 0 ? acertosMes.map(a => `
+                            <div class="flex items-center gap-2 text-xs p-2 bg-gray-50 rounded-lg">
+                                <span class="font-bold text-red-500">${a.de}</span>
+                                <span class="text-gray-400">➔</span>
+                                <span class="font-bold text-green-600">${a.para}</span>
+                                <span class="ml-auto font-mono font-bold">R$ ${a.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                            </div>
+                        `).join('') : '<div class="text-xs italic text-gray-400">Nenhum acerto pendente.</div>'}
+                    </div>
+                `;
+                resumoMensalContainer.appendChild(card);
+            });
+        }
+
+        window.copiarLink = () => {
+            const temp = document.createElement('input');
+            document.body.appendChild(temp);
+            temp.value = window.location.href;
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            alert("Link copiado! Mande para seus colegas.");
+        };
+
+        document.getElementById('data').valueAsDate = new Date();
+    </script>
+</body>
+</html>
